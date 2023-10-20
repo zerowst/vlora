@@ -115,7 +115,8 @@ class CustomLlama(LlamaForCausalLM):
 
     def update_vae(self):
         self.model.layers[0].self_attn.o_proj = VLoraLayer(in_features=5120, out_features=5120, adapter_name='default')
-        self.prior_net = copy.deepcopy(self.model)
+        # self.prior_net = copy.deepcopy(self.model)
+        self.prior_net = self.model
 
 
     def forward(
