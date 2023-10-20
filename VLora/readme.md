@@ -1,5 +1,5 @@
-finetune.py --- training code
-Custom.py --- Custom llama model definition containing most of changed code.
+finetune.py --- training code. \n
+Custom.py --- Custom llama model definition containing most of changed code. \n
 vlora.py --- VloraLayer definition.
 
 
