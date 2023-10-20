@@ -103,17 +103,19 @@ class CustomLlama(LlamaForCausalLM):
         #
         # self.prior_net[1].self_attn.o_proj = VLoraLayer(in_features=5120, out_features=5120, adapter_name='default')
         self.prior_net = None
-
         self.update_vae()
 
 
     def init_prior_net(self):
-        self.prior_net = copy.deepcopy(self.model)
+        self.prior_net = self.model
+        # self.prior_net = copy.deepcopy(self.model)
+        # why deepcopy net cannot update VAE_Z in VLoraLayer?????? direct is wrong.
         self.prior_net.layers[0].self_attn.o_proj = VLoraLayer(in_features=5120, out_features=5120,
                                                                adapter_name='default')
 
     def update_vae(self):
         self.model.layers[0].self_attn.o_proj = VLoraLayer(in_features=5120, out_features=5120, adapter_name='default')
+        self.prior_net = copy.deepcopy(self.model)
 
 
     def forward(
@@ -145,32 +147,22 @@ class CustomLlama(LlamaForCausalLM):
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
 
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
 
-        model_vae = self.model.layers[0].self_attn
-
-
-        print('posterior net')
-        for name, param in self.model.layers[0].self_attn.v_proj.named_parameters():
-            if param.requires_grad:
-
-            # param.annotation_data = param.annotation_data.to(torch.float32)
-            # param.requires_grad = True
-                print(name, param.data, param.data.dtype, param.grad)
-            # if param.requires_grad:
-            #     print(name, param.grad)
-
-        print('prior net')
-        for name, param in self.prior_net.layers[0].self_attn.o_proj.named_parameters():
-            if param.requires_grad:
-
-            # param.annotation_data = param.annotation_data.to(torch.float32)
-            # param.requires_grad = True
-                print(name, param.data, param.data.dtype, param.requires_grad, param.grad)
-
-        print('prior net all layers')
-        for name, param in self.prior_net.layers[0].self_attn.o_proj.named_parameters():
-            print(name, param.data, param.data.dtype, param.grad)
+        # print('posterior net')
+        # for name, param in self.model.layers[0].self_attn.v_proj.named_parameters():
+        #     if param.requires_grad:
+        #
+        #     # param.annotation_data = param.annotation_data.to(torch.float32)
+        #     # param.requires_grad = True
+        #         print(name, param.data, param.data.dtype, param.grad)
+        #     # if param.requires_grad:
+        #     #     print(name, param.grad)
+        #
+        #
+        # print('prior net all layers')
+        # for name, param in self.prior_net.layers[0].self_attn.o_proj.named_parameters():
+        #     print(name, param.data, param.data.dtype, param.grad)
 
 
         # param.requires_grad = True
@@ -212,7 +204,7 @@ class CustomLlama(LlamaForCausalLM):
             posterior_z = self.model.layers[0].self_attn.o_proj.VAE_Z
 
 
-            # print('posterior_z:', posterior_z)
+            print('posterior_z:', posterior_z)
 
 
             prior_outputs = self.prior_net(
@@ -226,11 +218,21 @@ class CustomLlama(LlamaForCausalLM):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
+            prior_hidden_states = prior_outputs[0]
+            prior_logits = self.lm_head(prior_hidden_states)
+            print(prior_logits)
+            print('prior net all layers')
+            for name, param in self.prior_net.layers[0].self_attn.o_proj.named_parameters():
+                print(name, param.data, param.data.dtype, param.grad)
             prior_z = self.prior_net.layers[0].self_attn.o_proj.VAE_Z
 
             print('prior_z:', prior_z)
 
             custom_loss = torch.sum(kl_divergence(posterior_z, prior_z))
+
+
+
+
             #
             #
             print('custom_loss:', custom_loss)
@@ -240,7 +242,48 @@ class CustomLlama(LlamaForCausalLM):
             print(loss.size())
 
             loss += beta * custom_loss
-            # print('loss: ', loss)
+
+
+
+            ### new optimizer
+            posterior_layer = self.model.layers[0].self_attn.o_proj
+            prior_layer = self.prior_net.layers[0].self_attn.o_proj
+
+            ### require true for vae layers
+            print('pos layer type')
+            for name, param in posterior_layer.named_parameters():
+                print(param.dtype)
+                param.data = param.data.to(torch.float32)
+                param.requires_grad = True
+            print('prior layer type')
+            for name, param in prior_layer.named_parameters():
+                print(param.dtype)
+                param.data = param.data.to(torch.float32)
+                param.requires_grad = True
+
+
+
+            new_optimizer = torch.optim.Adam(list(posterior_layer) + list(prior_layer), lr=1e-4)
+            new_optimizer.zero_grad()
+            loss.backward()
+            new_optimizer.step()
+
+            ### no grad for vae layers
+            ### require true for vae layers
+            print('pos layer type')
+            for name, param in posterior_layer.named_parameters():
+                print(param.dtype)
+                param.data = param.data.to(torch.float32)
+                param.requires_grad = False
+            print('prior layer type')
+            for name, param in prior_layer.named_parameters():
+                print(param.dtype)
+                param.data = param.data.to(torch.float32)
+                param.requires_grad = False
+
+            ### new optimizer-----------------------------------------------------------
+
+            print('loss: ', loss)
 
         if not return_dict:
             output = (logits,) + outputs[1:]

@@ -21,11 +21,12 @@ https://huggingface.co/models?filter=text-generation
 # You can also adapt this script on your own causal language modeling task. Pointers for this are left as comments.
 
 # import pydevd_pycharm
-# pydevd_pycharm.settrace('172.28.176.106', port=12345, stdoutToServer=True, stderrToServer=True)
+# pydevd_pycharm.settrace('10.249.197.104', port=12345, stdoutToServer=True, stderrToServer=True)
 
 import logging
 import math
 import os
+
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
@@ -538,15 +539,15 @@ def main():
             # device_map  = '1'
             device_map={"": int(os.environ.get("LOCAL_RANK") or 0)}
         )
-
+        # model.__init__()
         model.update_vae()
-
-        model.init_prior_net()
-
-        print(model.prior_net)
-        # print(model.model.layers[0].self_attn.VAE_Z)
-
+        # model.init_prior_net()
         print('loading custom model..')
+        print(model.prior_net)
+        print(model.prior_net.layers[0].self_attn.o_proj.VAE_Z)
+        # exit()
+
+
 
         # model = prepare_model_for_int8_training(model, output_embedding_layer_name="embed_out", layer_norm_names=[])
 
@@ -554,59 +555,6 @@ def main():
         model = LlamaForCausalLM.from_config(config)
         n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
         logger.info(f"Training new model from scratch - Total size={n_params / 2 ** 20:.2f}M params")
-
-
-
-
-
-
-
-
-
-
-    # input_message ='hello, how are you going?'
-    # input_ids = tokenizer(input_message, return_tensors="pt").input_ids.to('cuda')
-    #
-    #
-    # generate_input = {
-    #     "input_ids": input_ids,
-    #     "max_new_tokens": 128,
-    #     "top_k": 40,
-    #     "repetition_penalty": 1.1,
-    #     "top_p": 0.9,
-    #     "temperature": 0.3,
-    #     "do_sample": True,
-    #     "eos_token_id": tokenizer.eos_token_id,
-    #     "bos_token_id": tokenizer.bos_token_id,
-    #     "pad_token_id": tokenizer.pad_token_id
-    # }
-    # print('Generating...\n')
-    # model = get_peft_model(model, lora_config).to('cuda')
-    # generate_ids = model.generate(**generate_input)
-    # print(generate_ids)
-    # print(model)
-    # exit()
-
-    # firstdecoder = model.model.layers[0]
-    # firstdecoder.self_attn.o_proj =  VLoraLayer(in_features=5120, out_features=5120, adapter_name='default')
-    #
-
-    # print(firstdecoder.self_attn.o_proj.VAE_Z)
-    # # exit()
-    # model = get_peft_model(model, lora_config).to('cuda')
-    # print(model)
-    # print(model.generate(**generate_input))
-    # print(firstdecoder.self_attn.o_proj.VAE_Z)
-    #
-    # exit()
-    #
-    #
-    # model.print_trainable_parameters()
-
-
-
-
-
 
 
 
@@ -772,8 +720,8 @@ def main():
         if data_args.max_train_samples is not None:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
-        for index in random.sample(range(len(train_dataset)), 3):
-            logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+        # for index in random.sample(range(len(train_dataset)), 3):
+        #     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
         train_datasets = train_dataset.shuffle(seed=training_args.seed)
 
     if training_args.do_eval:
@@ -798,18 +746,6 @@ def main():
 
         def compute_metrics(eval_pred):
             predictions, labels = eval_pred
-            # print(predictions)
-            # print(predictions.shape)
-            # print(labels.shape)
-            #
-            # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-            #
-            # decoded_preds = tokenizer.batch_decode(predictions)
-            # decoded_labels = tokenizer.batch_decode(labels)
-            #
-            # result = rouge_metric.compute(predictions=decoded_preds, references=decoded_labels, rouge_types=["rouge4"])
-            # result_rouge4 = result["rouge4"].mid
-            # rouge_dict = {'roug4_precision': result_rouge4.precision, 'rouge4_recall': result_rouge4.recall, 'rouge4_fmeasure': result_rouge4.fmeasure}
 
             labs = labels[:, 1:].reshape(-1)
             # .reshape(-1)

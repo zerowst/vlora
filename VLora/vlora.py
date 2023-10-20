@@ -133,7 +133,7 @@ class VLoraLayer(Linear4bit):
         self.active_adapter = adapter_name
 
         self.VAE_model = Variation(input_size=out_features, output_size=out_features)
-        self.VAE_Z = None
+        self.VAE_Z = 0
 
     def forward(self, x: torch.Tensor):
         print('vlora x type', x.dtype)
@@ -142,27 +142,26 @@ class VLoraLayer(Linear4bit):
         result = result.clone()
         print('result', result.dtype)
 
-
-        result = result.clone()
-        if not torch.is_autocast_enabled():
-            expected_dtype = result.dtype
-            print('result type: ', expected_dtype)
-            x = x.to(self.lora_A[self.active_adapter].weight.dtype)
-            print('x type:', self.lora_A[self.active_adapter].weight.dtype)
-            output = (
-                    self.lora_B[self.active_adapter](
-                        self.lora_A[self.active_adapter](self.lora_dropout[self.active_adapter](x))
-                    ).to(expected_dtype)
-                    * self.scaling[self.active_adapter]
-            )
-            # print(2)
-        else:
-            output = (
-                    self.lora_B[self.active_adapter](
-                        self.lora_A[self.active_adapter](self.lora_dropout[self.active_adapter](x))
-                    )
-                    * self.scaling[self.active_adapter]
-            )
+        output = result.clone()
+        # if not torch.is_autocast_enabled():
+        #     expected_dtype = result.dtype
+        #     print('result type: ', expected_dtype)
+        #     x = x.to(self.lora_A[self.active_adapter].weight.dtype)
+        #     print('x type:', self.lora_A[self.active_adapter].weight.dtype)
+        #     output = (
+        #             self.lora_B[self.active_adapter](
+        #                 self.lora_A[self.active_adapter](self.lora_dropout[self.active_adapter](x))
+        #             ).to(expected_dtype)
+        #             * self.scaling[self.active_adapter]
+        #     )
+        #     # print(2)
+        # else:
+        #     output = (
+        #             self.lora_B[self.active_adapter](
+        #                 self.lora_A[self.active_adapter](self.lora_dropout[self.active_adapter](x))
+        #             )
+        #             * self.scaling[self.active_adapter]
+        #     )
             # print(3)
 
         # print('output:', output)
@@ -172,8 +171,9 @@ class VLoraLayer(Linear4bit):
         print('v_result type:', v_result.dtype)
 
 
-        self.VAE_Z = [mu, std]
 
+        self.VAE_Z = [mu, std]
+        print('VAE_Z', self.VAE_Z)
 
         result = result + v_result
         return result
